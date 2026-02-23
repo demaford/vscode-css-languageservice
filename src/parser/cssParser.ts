@@ -473,8 +473,8 @@ export class Parser {
 		return hasContent ? this.finish(node) : null;
 	}
 
-	public _parseDeclaration(stopTokens?: TokenType[]): nodes.Declaration | null {
-		const customProperty = this._tryParseCustomPropertyDeclaration(stopTokens);
+	public _parseDeclaration(stopTokens?: TokenType[], standaloneCustomPropertyValid = false): nodes.Declaration | null {
+		const customProperty = this._tryParseCustomPropertyDeclaration(stopTokens, standaloneCustomPropertyValid);
 		if (customProperty) {
 			return customProperty;
 		}
@@ -502,7 +502,7 @@ export class Parser {
 		return this.finish(node);
 	}
 
-	public _tryParseCustomPropertyDeclaration(stopTokens?: TokenType[]): nodes.CustomPropertyDeclaration | null {
+	public _tryParseCustomPropertyDeclaration(stopTokens?: TokenType[], standaloneCustomPropertyValid = false): nodes.CustomPropertyDeclaration | null {
 		if (!this.peekRegExp(TokenType.Ident, /^--/)) {
 			return null;
 		}
@@ -512,6 +512,9 @@ export class Parser {
 		}
 
 		if (!this.accept(TokenType.Colon)) {
+			if (standaloneCustomPropertyValid) {
+				return this.finish(node);
+			}
 			return this.finish(node, ParseError.ColonExpected, [TokenType.Colon]);
 		}
 		if (this.prevToken) {
@@ -1415,7 +1418,16 @@ export class Parser {
 		this.consumeToken(); // @container
 
 		node.addChild(this._parseIdent()); // optional container name
-		node.addChild(this._parseContainerQuery());
+		if (node.addChild(this._parseContainerQuery())) {
+			while (this.accept(TokenType.Comma)) {
+				if (this.peek(TokenType.CurlyL)) {
+					break;
+				}
+
+				node.addChild(this._parseIdent()); // optional container name
+				node.addChild(this._parseContainerQuery());
+			}
+		}
 
 		return this._parseBody(node, this._parseContainerDeclaration.bind(this, isNested));
 	}
@@ -1427,7 +1439,7 @@ export class Parser {
 		if (this.acceptIdent('not')) {
 			node.addChild(this._parseContainerQueryInParens());
 		} else {
-			node.addChild(this._parseContainerQueryInParens());
+			node.addChild(this._parseContainerQueryInParens(true));
 			if (this.peekIdent('and')) {
 				while (this.acceptIdent('and')) {
 					node.addChild(this._parseContainerQueryInParens());
@@ -1441,7 +1453,7 @@ export class Parser {
 		return this.finish(node);
 	}
 
-	public _parseContainerQueryInParens(): nodes.Node {
+	public _parseContainerQueryInParens(optional = false): nodes.Node | null {
 		// <query-in-parens>     = ( <container-query> )
 		// 					  | ( <size-feature> )
 		// 					  | style( <style-query> )
@@ -1465,6 +1477,9 @@ export class Parser {
 				return this.finish(node, ParseError.RightParenthesisExpected, [], [TokenType.CurlyL]);
 			}
 		} else {
+			if (optional) {
+				return null;
+			}
 			return this.finish(node, ParseError.LeftParenthesisExpected, [], [TokenType.CurlyL]);
 		}
 		return this.finish(node);
@@ -1493,7 +1508,7 @@ export class Parser {
 				}
 			}
 		} else {
-			node.addChild(this._parseDeclaration([TokenType.ParenthesisR]));
+			node.addChild(this._parseDeclaration([TokenType.ParenthesisR], true));
 		}
 		return this.finish(node);
 	}
