@@ -621,6 +621,22 @@ suite('CSS - Parser', () => {
 		assertFunction('let(--variable1, let(--variable2))', parser, parser._parseFunction.bind(parser));
 		assertFunction('fun(value1, value2)', parser, parser._parseFunction.bind(parser));
 		assertFunction('fun(value1,)', parser, parser._parseFunction.bind(parser));
+
+		// Builtin functions
+		// var
+		assertFunction('var(--some-variable)', parser, parser._parseFunction.bind(parser));
+		// calc
+		assertFunction('calc(10px + 1rem)', parser, parser._parseFunction.bind(parser));
+		// if
+		assertFunction('if(media(print): black; else: white;)', parser, parser._parseFunction.bind(parser));
+		assertFunction('if(media(print): ; else: ;)', parser, parser._parseFunction.bind(parser));
+		assertFunction('if(media(print): black; else: white)', parser, parser._parseFunction.bind(parser));
+		assertFunction('if(style(--some-var: true): black)', parser, parser._parseFunction.bind(parser));
+		// TODO: once https://github.com/microsoft/vscode-css-languageservice/pull/473 is merged, this should also work:
+		// assertFunction('if(style(--some-var): black)', parser, parser._parseFunction.bind(parser));
+		assertFunction('if(else: white)', parser, parser._parseFunction.bind(parser));
+		assertError('if()', parser, parser._parseFunction.bind(parser), ParseError.IfConditionExpected);
+		assertError('if(invalid: black;)', parser, parser._parseFunction.bind(parser), ParseError.IfConditionExpected);
 	});
 
 	test('test token prio', function () {
